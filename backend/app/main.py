@@ -1,14 +1,16 @@
 import time
 import logging
+import redis
+import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-import psycopg2
-import redis
-import httpx
 
 from app.config import settings
-from app.api.routes import resume, jd, score, enhance, rank
+from app.api.routes import resume, jd, score, enhance, rank, analyze
+from app.db.postgres_client import db, init_db_pool
+from app.db.redis_client import redis_client, init_redis
+from app.core.embeddings import init_qdrant_collection
 
 logger = logging.getLogger(__name__)
 
@@ -33,16 +35,32 @@ app.include_router(jd.router)
 app.include_router(score.router)
 app.include_router(enhance.router)
 app.include_router(rank.router)
+app.include_router(analyze.router)
 
 @app.get("/health")
 async def health_check():
-    return {
-        "status": "ok",
-        "environment": settings.APP_ENV,
-        "timestamp": time.time()
-    }
+    db_status = "ok" if db.check_connection() else "error"
+    redis_status = "ok" if redis_client.check_connection() else "error"
+    
+    qdrant_status = "error"
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{settings.QDRANT_URL}/healthz")
+            if resp.status_code == 200:
+                qdrant_status = "ok"
+    except:
+        pass
 
-from app.db.postgres_client import db, init_db_pool
+    return {
+        "status": "ok" if all(s == "ok" for s in [db_status, redis_status, qdrant_status]) else "degraded",
+        "environment": settings.APP_ENV,
+        "timestamp": time.time(),
+        "services": {
+            "database": db_status,
+            "redis": redis_status,
+            "qdrant": qdrant_status
+        }
+    }
 
 @app.get("/health/db")
 async def db_health():
@@ -52,13 +70,9 @@ async def db_health():
 
 @app.get("/health/redis")
 async def redis_health():
-    try:
-        # We can eventually move this to redis_client.py
-        r = redis.from_url(settings.REDIS_URL)
-        r.ping()
+    if redis_client.check_connection():
         return {"status": "ok", "service": "redis"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Redis connection failed: {str(e)}")
+    raise HTTPException(status_code=500, detail="Redis connection failed")
 
 @app.get("/health/qdrant")
 async def qdrant_health():
@@ -79,14 +93,17 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         content={"detail": exc.detail},
     )
 
-from app.db.postgres_client import init_db_pool
-
 @app.on_event("startup")
 async def startup_event():
     init_db_pool()
-    logger.info("Database pool initialized")
+    init_redis()
+    try:
+        init_qdrant_collection()
+        logger.info("Qdrant collection initialized")
+    except Exception as e:
+        logger.warning(f"Qdrant init failed: {e}")
+    logger.info("Application startup: DB, Redis, and Qdrant initialized")
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    # In Phase 1+, close DB pools/clients here
     pass

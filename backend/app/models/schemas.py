@@ -59,8 +59,10 @@ class GapAnalysis(BaseModel):
 
 class UploadResumeResponse(BaseModel):
     job_id: UUID
+    task_id: Optional[str] = None
     filename: str
     status: str
+    message: Optional[str] = None
     char_count: int
     parsed_data: Optional[ResumeData] = None
     score: Optional[ScoreBreakdown] = None

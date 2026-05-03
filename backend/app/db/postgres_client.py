@@ -52,7 +52,7 @@ class PostgresClient:
         finally:
             self.release_connection(conn)
 
-    def create_resume_job(self, filename: str, user_id: str = None) -> str:
+    def create_resume_job(self, filename: str, user_id: str = None, celery_task_id: str = None) -> str:
         """Inserts a new row into resume_jobs with status='pending'."""
         conn = self.get_connection()
         if not conn:
@@ -60,8 +60,8 @@ class PostgresClient:
         try:
             with conn.cursor() as cur:
                 cur.execute(
-                    "INSERT INTO resume_jobs (original_filename, user_id, status) VALUES (%s, %s, 'pending') RETURNING id",
-                    (filename, user_id)
+                    "INSERT INTO resume_jobs (original_filename, user_id, status, celery_task_id) VALUES (%s, %s, 'pending', %s) RETURNING id",
+                    (filename, user_id, celery_task_id)
                 )
                 job_id = cur.fetchone()[0]
                 conn.commit()
@@ -122,8 +122,9 @@ class PostgresClient:
 
     def create_analysis_result(self, resume_job_id: str, jd_job_id: Optional[str],
                                score_total: int, score_breakdown: Dict,
-                               gaps: Dict) -> str:
-        """Inserts into analysis_results."""
+                               gaps: Dict, semantic_similarity: Optional[float] = None,
+                               matched_skills: Optional[Dict] = None) -> str:
+        """Inserts into analysis_results with optional JD-aware metrics."""
         conn = self.get_connection()
         if not conn:
             raise Exception("Database connection unavailable")
@@ -131,9 +132,10 @@ class PostgresClient:
             with conn.cursor() as cur:
                 cur.execute(
                     """INSERT INTO analysis_results 
-                       (resume_job_id, jd_job_id, score_total, score_breakdown, gaps) 
-                       VALUES (%s, %s, %s, %s, %s) RETURNING id""",
-                    (resume_job_id, jd_job_id, score_total, json.dumps(score_breakdown), json.dumps(gaps))
+                       (resume_job_id, jd_job_id, score_total, score_breakdown, gaps, semantic_similarity, matched_skills) 
+                       VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+                    (resume_job_id, jd_job_id, score_total, json.dumps(score_breakdown), 
+                     json.dumps(gaps), semantic_similarity, json.dumps(matched_skills) if matched_skills else None)
                 )
                 analysis_id = cur.fetchone()[0]
                 conn.commit()
@@ -159,6 +161,42 @@ class PostgresClient:
                 return cur.fetchone()
         except Exception as e:
             logger.error(f"Failed to fetch analysis result for {resume_job_id}: {e}")
+            return None
+        finally:
+            self.release_connection(conn)
+
+    def create_jd_job(self, raw_text: str, parsed_data: Dict[str, Any]) -> str:
+        """Inserts a new row into jd_jobs."""
+        conn = self.get_connection()
+        if not conn:
+            raise Exception("Database connection unavailable")
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO jd_jobs (raw_text, parsed_data) VALUES (%s, %s) RETURNING id",
+                    (raw_text, json.dumps(parsed_data))
+                )
+                jd_job_id = cur.fetchone()[0]
+                conn.commit()
+                return str(jd_job_id)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Failed to create JD job: {e}")
+            raise
+        finally:
+            self.release_connection(conn)
+
+    def get_jd_job(self, jd_job_id: str) -> Optional[Dict[str, Any]]:
+        """Fetches a single jd_jobs row by id."""
+        conn = self.get_connection()
+        if not conn:
+            return None
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM jd_jobs WHERE id = %s", (jd_job_id,))
+                return cur.fetchone()
+        except Exception as e:
+            logger.error(f"Failed to fetch JD job {jd_job_id}: {e}")
             return None
         finally:
             self.release_connection(conn)

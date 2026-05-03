@@ -13,6 +13,7 @@ MAX_FILE_SIZE_MB = 10
 
 QDRANT_COLLECTION_NAME = "resume_embeddings"
 EMBEDDING_MODEL = "text-embedding-3-small"
+EMBEDDING_DIMENSION = 1536  # for text-embedding-3-small
 
 PARSER_LLM_MODEL = "openai/gpt-4o-mini"     # cheap, fast — for extraction
 ENHANCEMENT_LLM_MODEL = "openai/gpt-4o"     # quality — for rewriting
