@@ -185,6 +185,95 @@ def compute_ats_score_baseline(parsed_data: ResumeData, raw_text: str) -> ScoreB
         total=round(total)
     )
 
+def get_matched_skills(resume_skills: List[str], jd: Any) -> Dict[str, List[str]]:
+    """
+    Identifies matched and missing skills between a resume and a JD.
+    """
+    resume_skills_set = {s.lower() for s in resume_skills}
+    
+    required_matched = [s for s in jd.required_skills if s.lower() in resume_skills_set]
+    required_missing = [s for s in jd.required_skills if s.lower() not in resume_skills_set]
+    
+    preferred_matched = [s for s in jd.preferred_skills if s.lower() in resume_skills_set]
+    preferred_missing = [s for s in jd.preferred_skills if s.lower() not in resume_skills_set]
+    
+    return {
+        "required_matched": required_matched,
+        "required_missing": required_missing,
+        "preferred_matched": preferred_matched,
+        "preferred_missing": preferred_missing
+    }
+
+def compute_ats_score_with_jd(
+    parsed_resume: ResumeData,
+    parsed_jd: Any,
+    semantic_similarity: float,
+    raw_resume_text: str
+) -> ScoreBreakdown:
+    """
+    Computes a JD-aware ATS score.
+    """
+    # 1. Skill Match (40%)
+    matched = get_matched_skills(parsed_resume.skills, parsed_jd)
+    
+    required_count = max(len(parsed_jd.required_skills), 1)
+    preferred_count = max(len(parsed_jd.preferred_skills), 1)
+    
+    required_score = (len(matched["required_matched"]) / required_count) * 100
+    preferred_score = (len(matched["preferred_matched"]) / preferred_count) * 100
+    
+    # Semantic boost (up to 20 points added to skill score)
+    semantic_boost = semantic_similarity * 20
+    skill_score = min(100, (required_score * 0.7) + (preferred_score * 0.2) + semantic_boost)
+    
+    # 2. Experience (25%)
+    total_months = sum(exp.duration_months for exp in parsed_resume.experience)
+    required_months = parsed_jd.min_experience_years * 12
+    
+    if required_months == 0:
+        exp_score = 80.0 # Base if no experience required
+    else:
+        exp_score = min(100, (total_months / required_months) * 100)
+    
+    # Quality bonus (metrics detection)
+    metric_pattern = re.compile(r'\d+[%x$k\+]|reduction|improvement|optimization|latency|faster|scale')
+    metric_count = sum(1 for exp in parsed_resume.experience for b in exp.bullets if metric_pattern.search(b.lower()))
+    exp_score = min(100, exp_score + (metric_count * 5))
+    
+    # 3. Projects (15%)
+    # Overlap between project tech stacks and JD skills
+    jd_all_skills = {s.lower() for s in parsed_jd.required_skills + parsed_jd.preferred_skills}
+    project_tech_overlap = sum(
+        1 for proj in parsed_resume.projects for tech in proj.tech_stack if tech.lower() in jd_all_skills
+    )
+    project_score = min(100, (project_tech_overlap * 10) + (len(parsed_resume.projects) * 15))
+    
+    # 4. Education (10%)
+    edu_score = score_education_baseline(parsed_resume.education)
+    
+    # 5. Formatting (10%)
+    format_score = score_formatting_baseline(raw_resume_text, parsed_resume)
+    
+    # Calculate Weighted Total
+    scores = {
+        "skill_match": skill_score,
+        "experience": exp_score,
+        "projects": project_score,
+        "education": edu_score,
+        "formatting": format_score
+    }
+    
+    total = sum(scores[k] * SCORE_WEIGHTS[k] for k in scores)
+    
+    return ScoreBreakdown(
+        skill_match=skill_score,
+        experience=exp_score,
+        projects=project_score,
+        education=edu_score,
+        formatting=format_score,
+        total=round(total)
+    )
+
 def get_score_label(total: float) -> str:
     """
     Returns a human-readable interpretation of the ATS score.
