@@ -36,7 +36,11 @@ async def trigger_ranking(request: RankRequest):
             logger.warning(f"Resume {rid} is missing or not processed. Skipping from ranking.")
             
     if len(valid_ids) < 2:
-        raise HTTPException(status_code=400, detail="Not enough valid/processed resumes to perform ranking")
+        processing_count = len(request.resume_job_ids) - len(valid_ids)
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Only {len(valid_ids)} of {len(request.resume_job_ids)} resumes are ready. {processing_count} are still processing. Wait until at least 2 are 'Ready'."
+        )
 
     try:
         # 2. Perform Ranking

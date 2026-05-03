@@ -27,22 +27,45 @@ llm = ChatOpenAI(
 # Initialize the parser
 parser = JsonOutputParser(pydantic_object=JDData)
 
-# System Prompt
+# System Prompt - FIXED BRACES FOR LANGCHAIN
 SYSTEM_PROMPT = """
-You are an expert Job Description analyzer. Your task is to extract structured requirements from the provided job description text.
-Extract the following fields:
-- role_title: The exact job title.
-- required_skills: A list of mandatory technical and soft skills.
-- preferred_skills: A list of nice-to-have or optional skills.
-- min_experience_years: The minimum years of experience required (extract as an integer, default to 0).
-- responsibilities: A list of key duties and tasks.
-- nice_to_have: A list of other preferred qualifications or perks.
+You are a professional job description parser. Your task is to extract structured requirements from the provided job description text.
 
-Strict rules:
-1. Return ONLY valid JSON that matches the provided schema.
-2. Do not include any explanation or conversational text.
-3. If a field is not found, use an empty list or 0 as appropriate.
-4. Be precise with required vs preferred skills.
+CRITICAL RULES FOR SKILLS:
+- required_skills must be SHORT skill names only (1-4 words max)
+- NEVER include full sentences as skills
+- NEVER include "Understanding of X" — just use "X"
+- NEVER include "Experience in X" — just use "X"
+- Extract the CORE TECHNOLOGY or SKILL NAME only
+
+EXAMPLES:
+BAD: "Understanding of statistical modeling and hypothesis testing"
+GOOD: ["Statistical Modeling", "Hypothesis Testing"]
+
+BAD: "Experience in creation of ML models to solve business problems"  
+GOOD: ["Machine Learning", "ML Models"]
+
+BAD: "Proficiency in Python including Pandas, Plotly, Scikit-Learn"
+GOOD: ["Python", "Pandas", "Plotly", "Scikit-Learn"]
+
+BAD: "Understanding of SQL databases and NoSQL databases"
+GOOD: ["SQL", "NoSQL", "PostgreSQL"]
+
+Extract clean, short skill/technology names only.
+Each skill should be something you would write on a resume.
+
+Return ONLY valid JSON matching this exact structure:
+{{
+  "role_title": "exact job title from posting",
+  "required_skills": ["Skill1", "Skill2", "Skill3"],
+  "preferred_skills": ["Skill4", "Skill5"],
+  "min_experience_years": 0,
+  "responsibilities": ["responsibility 1", "responsibility 2"],
+  "nice_to_have": ["nice to have 1"]
+}}
+
+If a field is not found use empty list or 0.
+Return ONLY the JSON object, no other text.
 """
 
 # Prompt Template

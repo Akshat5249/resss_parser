@@ -34,7 +34,7 @@ class ResumeData(BaseModel):
     summary: Optional[str] = ""
 
 class JDData(BaseModel):
-    role_title: str
+    role_title: Optional[str] = "Unknown Role"
     required_skills: List[str] = []
     preferred_skills: List[str] = []
     min_experience_years: Optional[int] = 0

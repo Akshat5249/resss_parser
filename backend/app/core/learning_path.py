@@ -43,6 +43,14 @@ LEARNING_RESOURCES = {
         ],
         "estimated_weeks": 3
     },
+    "Machine Learning": {
+        "level": "intermediate",
+        "resources": [
+            {"type": "course", "name": "Machine Learning Specialization", "platform": "Coursera", "url": "https://www.coursera.org/specializations/machine-learning-introduction"},
+            {"type": "practice", "name": "Kaggle Learn", "platform": "Kaggle", "url": "https://www.kaggle.com/learn"}
+        ],
+        "estimated_weeks": 10
+    },
     "Kubernetes": {
         "level": "advanced",
         "resources": [
@@ -120,6 +128,29 @@ LEARNING_RESOURCES = {
     }
 }
 
+def normalize_skill_for_lookup(skill: str) -> str:
+    """Try to match messy skill names to known resources (Bug 4 fix)"""
+    skill_lower = skill.lower()
+    
+    # Direct mappings for common patterns
+    if "python" in skill_lower: return "Python"
+    if "sql" in skill_lower and "nosql" not in skill_lower: return "SQL"
+    if "nosql" in skill_lower or "mongodb" in skill_lower or "mongo" in skill_lower: return "MongoDB"
+    if "machine learning" in skill_lower or "ml model" in skill_lower: return "Machine Learning"
+    if "statistical" in skill_lower: return "Python"  # Pandas/scipy
+    if "hypothesis" in skill_lower: return "Python"
+    if "deep learning" in skill_lower: return "PyTorch"
+    if "docker" in skill_lower: return "Docker"
+    if "kubernetes" in skill_lower or "k8s" in skill_lower: return "Kubernetes"
+    if "aws" in skill_lower or "amazon" in skill_lower: return "AWS"
+    if "react" in skill_lower: return "React"
+    if "fastapi" in skill_lower: return "FastAPI"
+    if "langchain" in skill_lower: return "LangChain"
+    if "redis" in skill_lower: return "Redis"
+    if "postgres" in skill_lower: return "PostgreSQL"
+    
+    return skill  # return original if no match
+
 def generate_learning_path(
     missing_skills: List[str],
     preferred_missing: List[str],
@@ -134,20 +165,27 @@ def generate_learning_path(
     recommended_order = []
     
     # Process required missing skills first
-    for skill in missing_skills:
+    for raw_skill in missing_skills:
+        skill = normalize_skill_for_lookup(raw_skill)
         resource_data = LEARNING_RESOURCES.get(skill)
+        
         if not resource_data:
-            # Fallback for unknown skills
+            # Fallback for unknown skills - Bug 4 fix (YouTube instead of Google)
             resource_data = {
                 "level": "unknown",
                 "resources": [
-                    {"type": "search", "name": f"Learn {skill}", "platform": "Google", "url": f"https://google.com/search?q=learn+{skill}"}
+                    {
+                        "type": "search", 
+                        "name": f"Learn {raw_skill} Tutorial", 
+                        "platform": "YouTube", 
+                        "url": f"https://www.youtube.com/results?search_query=learn+{raw_skill.replace(' ', '+')}+tutorial"
+                    }
                 ],
                 "estimated_weeks": 2
             }
             
         skill_entry = {
-            "skill": skill,
+            "skill": raw_skill, # Keep original name for display
             "level": resource_data["level"],
             "resources": resource_data["resources"],
             "estimated_weeks": resource_data["estimated_weeks"]
@@ -155,25 +193,31 @@ def generate_learning_path(
         
         if len(priority_skills) < 3:
             priority_skills.append(skill_entry)
-            recommended_order.append(skill)
+            recommended_order.append(raw_skill)
             total_weeks += resource_data["estimated_weeks"]
         else:
             secondary_skills.append(skill_entry)
             
     # Process preferred missing skills
-    for skill in preferred_missing:
+    for raw_skill in preferred_missing:
+        skill = normalize_skill_for_lookup(raw_skill)
         resource_data = LEARNING_RESOURCES.get(skill)
         if not resource_data:
             resource_data = {
                 "level": "unknown",
                 "resources": [
-                    {"type": "search", "name": f"Learn {skill}", "platform": "Google", "url": f"https://google.com/search?q=learn+{skill}"}
+                    {
+                        "type": "search", 
+                        "name": f"Learn {raw_skill}", 
+                        "platform": "YouTube", 
+                        "url": f"https://www.youtube.com/results?search_query=learn+{raw_skill.replace(' ', '+')}"
+                    }
                 ],
                 "estimated_weeks": 1
             }
             
         secondary_skills.append({
-            "skill": skill,
+            "skill": raw_skill,
             "level": resource_data["level"],
             "resources": resource_data["resources"],
             "estimated_weeks": resource_data["estimated_weeks"]

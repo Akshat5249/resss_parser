@@ -1,5 +1,6 @@
 import logging
 import json
+import uuid
 from typing import Dict, Any, Optional, List
 import psycopg2
 from psycopg2 import pool
@@ -22,7 +23,6 @@ class PostgresClient:
             logger.info("Database connection pool initialized.")
         except Exception as e:
             logger.error(f"Failed to initialize database pool: {e}")
-            # Don't raise here, allow health check to report it
 
     def get_connection(self):
         """Gets a connection from the pool."""
@@ -177,37 +177,45 @@ class PostgresClient:
             self.release_connection(conn)
 
     def create_jd_job(self, raw_text: str, parsed_data: Dict[str, Any]) -> str:
-        """Inserts a new row into jd_jobs."""
+        """Insert a new JD job record and return the jd_job_id."""
+        jd_job_id = str(uuid.uuid4())
+        query = """
+            INSERT INTO jd_jobs (id, raw_text, parsed_data, created_at, updated_at)
+            VALUES (%s, %s, %s, NOW(), NOW())
+            RETURNING id
+        """
         conn = self.get_connection()
         if not conn:
             raise Exception("Database connection unavailable")
         try:
             with conn.cursor() as cur:
-                cur.execute(
-                    "INSERT INTO jd_jobs (raw_text, parsed_data) VALUES (%s, %s) RETURNING id",
-                    (raw_text, json.dumps(parsed_data))
-                )
-                jd_job_id = cur.fetchone()[0]
+                cur.execute(query, (
+                    jd_job_id,
+                    raw_text,
+                    json.dumps(parsed_data)
+                ))
+                result = cur.fetchone()
                 conn.commit()
-                return str(jd_job_id)
+                return str(result[0])
         except Exception as e:
             conn.rollback()
-            logger.error(f"Failed to create JD job: {e}")
+            logger.error(f"create_jd_job failed: {e}", exc_info=True)
             raise
         finally:
             self.release_connection(conn)
 
     def get_jd_job(self, jd_job_id: str) -> Optional[Dict[str, Any]]:
-        """Fetches a single jd_jobs row by id."""
+        """Fetch a JD job by id."""
+        query = "SELECT * FROM jd_jobs WHERE id = %s"
         conn = self.get_connection()
         if not conn:
             return None
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute("SELECT * FROM jd_jobs WHERE id = %s", (jd_job_id,))
+                cur.execute(query, (jd_job_id,))
                 return cur.fetchone()
         except Exception as e:
-            logger.error(f"Failed to fetch JD job {jd_job_id}: {e}")
+            logger.error(f"get_jd_job failed: {e}")
             return None
         finally:
             self.release_connection(conn)
