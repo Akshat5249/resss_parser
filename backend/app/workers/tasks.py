@@ -3,9 +3,16 @@ from app.workers.celery_app import celery_app
 from app.db.postgres_client import db
 from app.chains.resume_parser_chain import parse_resume
 from app.core.skill_normalizer import normalize_skills
-from app.core.scorer import compute_ats_score_baseline, compute_ats_score_with_jd, get_matched_skills
+from app.core.scorer import compute_ats_score_baseline, compute_ats_score_with_jd, get_matched_skills, get_score_label
 from app.models.schemas import ResumeData, JDData
 from app.core.embeddings import compute_similarity, store_resume_embedding, store_jd_embedding
+
+# Phase 3 Imports
+from app.core.gap_detector import detect_gaps
+from app.chains.enhancement_chain import enhance_weak_bullets
+from app.core.formatter_checker import check_formatting
+from app.core.learning_path import generate_learning_path
+from app.chains.explainability_chain import generate_feedback
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +85,7 @@ def process_resume_task(self, job_id: str):
 @celery_app.task(bind=True, name="app.workers.tasks.analyze_resume_jd_task", max_retries=2, default_retry_delay=30)
 def analyze_resume_jd_task(self, resume_job_id: str, jd_job_id: str) -> dict:
     """
-    Background task to compute semantic similarity and JD-aware ATS score.
+    Background task to compute semantic similarity and full Phase 3 ATS analysis.
     """
     logger.info(f"[{resume_job_id}] JD analysis task started")
     try:
@@ -91,6 +98,7 @@ def analyze_resume_jd_task(self, resume_job_id: str, jd_job_id: str) -> dict:
             
         parsed_resume = ResumeData(**resume_job["parsed_data"])
         parsed_jd = JDData(**jd_job["parsed_data"])
+        raw_resume_text = resume_job["raw_text"]
         
         # 2. Get Semantic Similarity
         logger.info(f"[{resume_job_id}] Computing semantic similarity")
@@ -99,7 +107,7 @@ def analyze_resume_jd_task(self, resume_job_id: str, jd_job_id: str) -> dict:
         # 3. Fallback: Generate embeddings if missing in Qdrant
         if similarity == 0.0:
             logger.info(f"[{resume_job_id}] Embeddings missing or match failed, generating/verifying...")
-            store_resume_embedding(resume_job_id, resume_job["raw_text"], {"name": parsed_resume.name})
+            store_resume_embedding(resume_job_id, raw_resume_text, {"name": parsed_resume.name})
             store_jd_embedding(jd_job_id, jd_job["raw_text"], {"role_title": parsed_jd.role_title})
             similarity = compute_similarity(resume_job_id, jd_job_id)
 
@@ -110,29 +118,65 @@ def analyze_resume_jd_task(self, resume_job_id: str, jd_job_id: str) -> dict:
             parsed_resume, 
             parsed_jd, 
             similarity, 
-            resume_job["raw_text"]
+            raw_resume_text
         )
         
-        # 5. Get matched skills
-        matched = get_matched_skills(parsed_resume.skills, parsed_jd)
-        gaps = {
-            "missing_skills": matched["required_missing"],
-            "weak_bullets": [],
-            "preferred_missing": matched["preferred_missing"]
-        }
+        # 5. Phase 3: Gap Detection
+        logger.info(f"[{resume_job_id}] Running gap detection")
+        gaps = detect_gaps(parsed_resume, parsed_jd)
         
-        # 6. Save results
+        # 6. Phase 3: Formatting Check
+        logger.info(f"[{resume_job_id}] Checking formatting")
+        formatting = check_formatting(raw_resume_text, parsed_resume)
+        
+        # 7. Phase 3: Enhance Weak Bullets
+        enhancements = []
+        if gaps["weak_bullets"]:
+            logger.info(f"[{resume_job_id}] Enhancing {len(gaps['weak_bullets'])} weak bullets")
+            enhancements = enhance_weak_bullets(
+                gaps["weak_bullets"],
+                parsed_jd.role_title,
+                parsed_jd.required_skills
+            )
+            
+        # 8. Phase 3: Generate Learning Path
+        logger.info(f"[{resume_job_id}] Generating learning path")
+        learning_path = generate_learning_path(
+            gaps["missing_skills"],
+            gaps["preferred_missing"],
+            parsed_jd.role_title
+        )
+        
+        # 9. Phase 3: Generate Feedback
+        logger.info(f"[{resume_job_id}] Generating coaching feedback")
+        matched_skills = get_matched_skills(parsed_resume.skills, parsed_jd)
+        feedback = generate_feedback(
+            role_title=parsed_jd.role_title,
+            score_total=int(score.total),
+            score_label=get_score_label(score.total),
+            semantic_similarity=similarity,
+            matched_skills=matched_skills,
+            parsed_resume=parsed_resume,
+            weak_bullet_count=len(gaps["weak_bullets"]),
+            formatting_issues=formatting["ats_issues"]
+        )
+        
+        # 10. Save results to DB
         db.create_analysis_result(
             resume_job_id=resume_job_id,
             jd_job_id=jd_job_id,
             score_total=int(score.total),
             score_breakdown=score.model_dump(),
             gaps=gaps,
+            enhancements=enhancements,
+            compliance_issues=formatting,
+            feedback_text=feedback,
+            learning_path=learning_path,
             semantic_similarity=similarity,
-            matched_skills=matched
+            matched_skills=matched_skills
         )
         
-        logger.info(f"[{resume_job_id}] JD analysis complete. Score: {score.total}")
+        logger.info(f"[{resume_job_id}] Full Phase 3 analysis complete. Score: {score.total}")
         return {
             "resume_job_id": resume_job_id,
             "jd_job_id": jd_job_id,

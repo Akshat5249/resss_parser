@@ -123,8 +123,12 @@ class PostgresClient:
     def create_analysis_result(self, resume_job_id: str, jd_job_id: Optional[str],
                                score_total: int, score_breakdown: Dict,
                                gaps: Dict, semantic_similarity: Optional[float] = None,
-                               matched_skills: Optional[Dict] = None) -> str:
-        """Inserts into analysis_results with optional JD-aware metrics."""
+                               matched_skills: Optional[Dict] = None,
+                               enhancements: Optional[List] = None,
+                               compliance_issues: Optional[Dict] = None,
+                               feedback_text: Optional[str] = None,
+                               learning_path: Optional[Dict] = None) -> str:
+        """Inserts into analysis_results with all JD-aware metrics and Phase 3 features."""
         conn = self.get_connection()
         if not conn:
             raise Exception("Database connection unavailable")
@@ -132,10 +136,17 @@ class PostgresClient:
             with conn.cursor() as cur:
                 cur.execute(
                     """INSERT INTO analysis_results 
-                       (resume_job_id, jd_job_id, score_total, score_breakdown, gaps, semantic_similarity, matched_skills) 
-                       VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+                       (resume_job_id, jd_job_id, score_total, score_breakdown, gaps, 
+                        semantic_similarity, matched_skills, enhancements, 
+                        compliance_issues, feedback_text, learning_path) 
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
                     (resume_job_id, jd_job_id, score_total, json.dumps(score_breakdown), 
-                     json.dumps(gaps), semantic_similarity, json.dumps(matched_skills) if matched_skills else None)
+                     json.dumps(gaps), semantic_similarity, 
+                     json.dumps(matched_skills) if matched_skills else None,
+                     json.dumps(enhancements) if enhancements else None,
+                     json.dumps(compliance_issues) if compliance_issues else None,
+                     feedback_text,
+                     json.dumps(learning_path) if learning_path else None)
                 )
                 analysis_id = cur.fetchone()[0]
                 conn.commit()

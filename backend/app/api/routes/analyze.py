@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 
 from app.db.postgres_client import db
 from app.workers.tasks import analyze_resume_jd_task
-from app.models.schemas import AnalyzeRequest, ScoreBreakdown
+from app.models.schemas import AnalyzeRequest
 from app.core.scorer import get_score_label
 
 logger = logging.getLogger(__name__)
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/analyze", tags=["Analysis"])
 @router.post("/")
 async def trigger_analysis(request: AnalyzeRequest):
     """
-    Triggers a full JD-aware analysis for a resume.
+    Triggers a full JD-aware analysis for a resume (Phase 3).
     """
     resume_job_id = str(request.resume_job_id)
     jd_job_id = str(request.jd_job_id)
@@ -35,14 +35,15 @@ async def trigger_analysis(request: AnalyzeRequest):
         raise HTTPException(status_code=404, detail="Job description not found")
         
     # 3. Enqueue Celery task
+    # Ensure we use the correct task name as defined in tasks.py
     analyze_resume_jd_task.delay(resume_job_id, jd_job_id)
     
     return {
-        "analysis_id": str(uuid4()), # Temporary ID, actual one generated in DB
+        "analysis_id": str(uuid4()), 
         "resume_job_id": resume_job_id,
         "jd_job_id": jd_job_id,
         "status": "processing",
-        "message": "JD analysis started. Poll /analyze/{resume_job_id}/status for updates."
+        "message": "Full Phase 3 analysis started. Poll /analyze/{resume_job_id}/status for updates."
     }
 
 @router.get("/{resume_job_id}/status")
@@ -52,43 +53,42 @@ async def get_analysis_status(resume_job_id: UUID):
     """
     result = db.get_analysis_result(str(resume_job_id))
     
-    # If no result at all, it's definitely not found
     if not result:
-        return {"status": "not_found", "message": "No analysis found for this resume. Upload and process a resume first."}
+        return {"status": "not_found", "message": "No analysis found for this resume."}
         
-    # If jd_job_id is null, it's the baseline score from Phase 1
     if not result.get("jd_job_id"):
-        # Check if the resume itself is still processing
         resume_job = db.get_resume_job(str(resume_job_id))
         if resume_job and resume_job["status"] != "done":
              return {"status": "processing", "message": "Resume parsing in progress..."}
         
-        return {"status": "baseline_ready", "message": "Baseline analysis complete. JD-aware matching is pending or not started."}
+        return {"status": "baseline_ready", "message": "Only baseline analysis available. POST to /analyze for full matching."}
 
     return {
         "status": "done",
-        "message": "JD-aware analysis complete!",
+        "message": "Full Phase 3 analysis complete!",
         "score_total": result["score_total"]
     }
 
 @router.get("/{resume_job_id}")
 async def get_analysis_results(resume_job_id: UUID):
     """
-    Returns full analysis results for a resume vs JD match.
+    Returns the complete Phase 3 analysis results.
     """
     result = db.get_analysis_result(str(resume_job_id))
     if not result or not result.get("jd_job_id"):
         raise HTTPException(status_code=404, detail="JD-aware analysis result not found")
     
-    jd_job = db.get_jd_job(str(result["jd_job_id"]))
-    
     return {
-        "resume_job_id": resume_job_id,
+        "resume_job_id": str(resume_job_id),
         "jd_job_id": result["jd_job_id"],
         "score": result["score_breakdown"],
-        "matched_skills": result["matched_skills"],
-        "semantic_similarity": result["semantic_similarity"],
-        "gaps": result["gaps"],
         "score_label": get_score_label(result["score_total"]),
+        "semantic_similarity": result["semantic_similarity"],
+        "matched_skills": result["matched_skills"],
+        "gaps": result.get("gaps"),
+        "enhancements": result.get("enhancements", []),
+        "formatting": result.get("compliance_issues"),
+        "learning_path": result.get("learning_path"),
+        "feedback": result.get("feedback_text"),
         "created_at": result["created_at"]
     }
