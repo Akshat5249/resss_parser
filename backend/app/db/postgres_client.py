@@ -212,6 +212,45 @@ class PostgresClient:
         finally:
             self.release_connection(conn)
 
+    def create_ranking_session(self, jd_job_id: str, resume_job_ids: List[str], 
+                               ranked_results: List[Dict[str, Any]], user_id: str = None) -> str:
+        """Inserts a new row into ranking_sessions."""
+        conn = self.get_connection()
+        if not conn:
+            raise Exception("Database connection unavailable")
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO ranking_sessions 
+                       (jd_job_id, resume_job_ids, ranked_results, user_id) 
+                       VALUES (%s, %s::uuid[], %s, %s) RETURNING id""",
+                    (jd_job_id, resume_job_ids, json.dumps(ranked_results), user_id)
+                )
+                session_id = cur.fetchone()[0]
+                conn.commit()
+                return str(session_id)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Failed to create ranking session: {e}")
+            raise
+        finally:
+            self.release_connection(conn)
+
+    def get_ranking_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """Fetches a single ranking session by id."""
+        conn = self.get_connection()
+        if not conn:
+            return None
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM ranking_sessions WHERE id = %s", (session_id,))
+                return cur.fetchone()
+        except Exception as e:
+            logger.error(f"Failed to fetch ranking session {session_id}: {e}")
+            return None
+        finally:
+            self.release_connection(conn)
+
 # Export a single instance
 db = PostgresClient()
 

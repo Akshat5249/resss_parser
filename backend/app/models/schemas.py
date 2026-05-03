@@ -90,3 +90,29 @@ class AnalysisResultResponse(BaseModel):
     compliance_issues: List[str] = []
     feedback: Optional[str] = ""
     learning_path: List[Dict[str, str]] = []
+
+class RankRequest(BaseModel):
+    jd_job_id: str
+    resume_job_ids: List[str]
+
+class RankingEntry(BaseModel):
+    rank: int
+    resume_job_id: str
+    candidate_name: str
+    score_total: int
+    semantic_similarity: float
+    matched_skills_count: int
+    missing_skills_count: int
+    top_matched_skills: List[str]
+    recommendation: str
+
+class RankingResponse(BaseModel):
+    session_id: str
+    jd_job_id: str
+    summary: Dict
+    rankings: List[RankingEntry]
+    created_at: datetime
+
+class ReportRequest(BaseModel):
+    resume_job_id: str
+    jd_job_id: Optional[str] = None

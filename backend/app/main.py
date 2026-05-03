@@ -10,7 +10,7 @@ from app.config import settings
 from app.api.routes import resume, jd, score, enhance, rank, analyze
 from app.db.postgres_client import db, init_db_pool
 from app.db.redis_client import redis_client, init_redis
-from app.core.embeddings import init_qdrant_collection
+from app.api.routes import resume, jd, score, enhance, rank, analyze, report
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +36,8 @@ app.include_router(score.router)
 app.include_router(enhance.router)
 app.include_router(rank.router)
 app.include_router(analyze.router)
+app.include_router(report.router)
+
 
 @app.get("/health")
 async def health_check():
