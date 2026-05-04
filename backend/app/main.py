@@ -1,16 +1,15 @@
 import time
 import logging
-import redis
+import os
 import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
-from app.api.routes import resume, jd, score, enhance, rank, analyze
+from app.api.routes import resume, jd, score, enhance, rank, analyze, report
 from app.db.postgres_client import db, init_db_pool
 from app.db.redis_client import redis_client, init_redis
-from app.api.routes import resume, jd, score, enhance, rank, analyze, report
 from app.core.embeddings import init_qdrant_collection
 
 logger = logging.getLogger(__name__)
@@ -20,8 +19,6 @@ app = FastAPI(
     description="AI-powered ATS Resume Scanner and Optimizer",
     version="0.1.0"
 )
-
-import os
 
 # CORS Middleware
 allowed_origins = (
