@@ -90,13 +90,10 @@ async def redis_health():
 @app.get("/health/qdrant")
 async def qdrant_health():
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(f"{settings.QDRANT_URL}/healthz")
-            if response.status_code == 200:
-                return {"status": "ok", "service": "qdrant"}
-            else:
-                raise Exception(f"Qdrant returned status {response.status_code}")
+        qdrant_client.get_collections()
+        return {"status": "ok", "service": "qdrant"}
     except Exception as e:
+        logger.error(f"Detailed Qdrant health failure: {e}")
         raise HTTPException(status_code=500, detail=f"Qdrant connection failed: {str(e)}")
 
 @app.exception_handler(HTTPException)
