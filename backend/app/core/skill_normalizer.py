@@ -89,7 +89,23 @@ SKILL_SYNONYMS: Dict[str, str] = {
     "elastic": "Elasticsearch",
     "elasticsearch": "Elasticsearch",
     "sqlite": "SQLite",
-    "dynamodb": "DynamoDB"
+    "dynamodb": "DynamoDB",
+    "llm api": "LLM API",
+    "llm apis": "LLM APIs",
+    "rag": "RAG",
+    "api": "API",
+    "apis": "APIs",
+    "sql": "SQL",
+    "nosql": "NoSQL",
+    "rest api": "REST API",
+    "rest apis": "REST APIs",
+    "async programming": "Async Programming",
+    "ci/cd": "CI/CD",
+    "nlp": "NLP",
+    "cv": "Computer Vision",
+    "aws": "AWS",
+    "gcp": "GCP",
+    "mlops": "MLOps"
 }
 
 def normalize_skill(skill: str) -> str:

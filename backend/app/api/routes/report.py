@@ -22,7 +22,7 @@ def _get_score_label(score: int) -> str:
 @router.get("/{resume_job_id}")
 async def get_report(resume_job_id: str):
     """
-    Generates and returns the ATS report PDF with safe null handling. (Fix 1A)
+    Generates and returns the ATS report PDF with safe null handling.
     """
     # 1. Fetch resume job
     resume_job = db.get_resume_job(resume_job_id)
@@ -48,6 +48,24 @@ async def get_report(resume_job_id: str):
         except Exception:
             return default
     
+    # PDF FIX 3: Better role_title extraction
+    jd_job_id = analysis.get("jd_job_id")
+    role_title = ""
+    
+    if jd_job_id:
+        try:
+            jd_job = db.get_jd_job(jd_job_id)
+            if jd_job:
+                jd_parsed = safe_json(jd_job.get("parsed_data"), {})
+                role_title = jd_parsed.get("role_title", "")
+        except Exception as e:
+            logger.warning(f"Could not fetch JD for role title: {e}")
+    
+    # Also try from matched_skills payload
+    if not role_title:
+        matched = safe_json(analysis.get("matched_skills"), {})
+        role_title = matched.get("role_title", "")
+    
     # 3. Build analysis_data with safe defaults for every field
     score_breakdown = safe_json(analysis.get("score_breakdown"), {})
     
@@ -56,9 +74,7 @@ async def get_report(resume_job_id: str):
             safe_json(resume_job.get("parsed_data"), {})
             .get("name", "Candidate")
         ),
-        "role_title": safe_json(
-            analysis.get("matched_skills"), {}
-        ).get("role_title", "Specified Role"),
+        "role_title": role_title or "",
         "score_total": analysis.get("score_total") or 0,
         "score": {
             "skill_match": score_breakdown.get("skill_match", 0),

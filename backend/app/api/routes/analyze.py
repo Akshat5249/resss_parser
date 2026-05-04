@@ -1,4 +1,5 @@
 import logging
+import json
 from fastapi import APIRouter, HTTPException
 from uuid import UUID, uuid4
 
@@ -78,9 +79,24 @@ async def get_analysis_results(resume_job_id: UUID):
     if not result or not result.get("jd_job_id"):
         raise HTTPException(status_code=404, detail="JD-aware analysis result not found")
     
+    # BACKEND: Add role_title to analyze response
+    role_title = ""
+    jd_job_id = result.get("jd_job_id")
+    if jd_job_id:
+        jd_job = db.get_jd_job(str(jd_job_id))
+        if jd_job:
+            jd_parsed_data = jd_job.get("parsed_data") or {}
+            if isinstance(jd_parsed_data, str):
+                try:
+                    jd_parsed_data = json.loads(jd_parsed_data)
+                except:
+                    jd_parsed_data = {}
+            role_title = jd_parsed_data.get("role_title", "")
+
     return {
         "resume_job_id": str(resume_job_id),
-        "jd_job_id": result["jd_job_id"],
+        "jd_job_id": str(jd_job_id),
+        "role_title": role_title,
         "score": result["score_breakdown"],
         "score_label": get_score_label(result["score_total"]),
         "semantic_similarity": result["semantic_similarity"],

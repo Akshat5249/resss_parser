@@ -28,19 +28,7 @@ def get_score_color(score: int) -> HexColor:
     if score >= 40: return WARNING
     return DANGER
 
-def get_score_bar(score) -> str:
-    """Convert 0-100 score to 10-char bar string. (Fix 1C)"""
-    try:
-        score_int = max(0, min(100, int(round(float(score or 0)))))
-        filled = score_int // 10
-        empty = 10 - filled
-        return "█" * filled + "░" * empty
-    except Exception:
-        return "░░░░░░░░░░"
-
-def build_header_section(elements, candidate_name, role_title, score_total, score_label, generated_at):
-    styles = getSampleStyleSheet()
-    
+def build_header_section(elements, candidate_name, role_title, score_total, score_label, generated_at, styles):
     title_style = ParagraphStyle(
         'TitleStyle',
         parent=styles['Heading1'],
@@ -60,7 +48,7 @@ def build_header_section(elements, candidate_name, role_title, score_total, scor
             Paragraph(f"<b>Score: {int(score_total)}/100</b>", ParagraphStyle('Score', fontSize=22, textColor=get_score_color(score_total), alignment=TA_RIGHT, fontName='Helvetica-Bold'))
         ],
         [
-            Paragraph(f"Role: {role_title}", ParagraphStyle('Role', fontSize=12, textColor=TEXT_SECONDARY, fontName='Helvetica')),
+            Paragraph(f"Role: {role_title or 'Baseline Analysis'}", ParagraphStyle('Role', fontSize=12, textColor=TEXT_SECONDARY, fontName='Helvetica')),
             Paragraph(f"{score_label}", ParagraphStyle('Label', fontSize=14, textColor=get_score_color(score_total), alignment=TA_RIGHT, fontName='Helvetica-Bold'))
         ]
     ]
@@ -70,51 +58,110 @@ def build_header_section(elements, candidate_name, role_title, score_total, scor
         ('VALIGN', (0,0), (-1,-1), 'TOP'),
     ]))
     elements.append(header_table)
+    
+    # PDF FIX 2E: Add baseline note if no role title
+    if not role_title or role_title == "Resume Analysis":
+        elements.append(Paragraph(
+            "Baseline analysis — no job description provided",
+            ParagraphStyle("note",
+                fontSize=9,
+                textColor=HexColor("#9CA3AF"),
+                fontName="Helvetica-Oblique",
+                alignment=TA_CENTER
+            )
+        ))
+        elements.append(Spacer(1, 4))
+        
     elements.append(Spacer(1, 0.5*cm))
     elements.append(Paragraph(f"Generated on: {generated_at}", ParagraphStyle('Date', fontSize=8, textColor=TEXT_SECONDARY, fontName='Helvetica')))
     elements.append(Spacer(1, 1*cm))
 
-def build_score_breakdown_section(elements, score_breakdown):
-    score_breakdown = score_breakdown or {} # Fix 1B
-    styles = getSampleStyleSheet()
-    elements.append(Paragraph("<b>Score Breakdown</b>", ParagraphStyle('H2', parent=styles['Heading2'], fontName='Helvetica-Bold')))
+def build_score_breakdown_section(elements, score_breakdown, styles):
+    # PDF FIX 1: Simplify to one table with ASCII bars
+    score_breakdown = score_breakdown or {}
+    
+    def get_color(score):
+        s = float(score or 0)
+        if s >= 70: return HexColor("#10B981")
+        if s >= 40: return HexColor("#4F46E5")
+        return HexColor("#F59E0B")
+    
+    def get_bar(score):
+        s = max(0, min(100, int(float(score or 0))))
+        filled = s // 10
+        # Use ASCII chars that work in Helvetica
+        return "[" + "=" * filled + "-" * (10 - filled) + "]"
     
     items = [
-        ("Skill Match", score_breakdown.get("skill_match", 0) or 0),
-        ("Experience", score_breakdown.get("experience", 0) or 0),
-        ("Projects", score_breakdown.get("projects", 0) or 0),
-        ("Education", score_breakdown.get("education", 0) or 0),
-        ("Formatting", score_breakdown.get("formatting", 0) or 0),
+        ("Skill Match",  "40%", score_breakdown.get("skill_match", 0) or 0),
+        ("Experience",   "25%", score_breakdown.get("experience", 0) or 0),
+        ("Projects",     "15%", score_breakdown.get("projects", 0) or 0),
+        ("Education",    "10%", score_breakdown.get("education", 0) or 0),
+        ("Formatting",   "10%", score_breakdown.get("formatting", 0) or 0),
     ]
-
-    data = [["Component", "Score", "Visual Bar"]]
-    for label, val in items:
-        score_val = float(val)
-        bar = get_score_bar(score_val)
-        data.append([label, f"{int(score_val)}/100", bar])
-        
-    table = Table(data, colWidths=[2*inch, 1*inch, 3*inch])
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), LIGHT_BG),
-        ('TEXTCOLOR', (0,0), (-1,0), PRIMARY),
-        ('ALIGN', (0,0), (-1,0), 'CENTER'),
-        ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-        ('BOTTOMPADDING', (0,0), (-1,0), 12),
-        ('BACKGROUND', (0,1), (-1,-1), white),
-        ('GRID', (0,0), (-1,-1), 0.5, BORDER),
-        ('FONTSIZE', (2,1), (2,-1), 12),
-    ]))
-    elements.append(table)
-    elements.append(Spacer(1, 1*cm))
-
-def build_skills_section(elements, matched_skills):
-    matched_skills = matched_skills or {} # Fix 1B
-    styles = getSampleStyleSheet()
-    elements.append(Paragraph("<b>Skills Analysis</b>", ParagraphStyle('H2', parent=styles['Heading2'], fontName='Helvetica-Bold')))
     
+    data = [["Component", "Weight", "Bar", "Score"]]
+    for label, weight, score in items:
+        data.append([
+            label,
+            weight,
+            get_bar(score),
+            f"{int(round(float(score)))}/100"
+        ])
+    
+    table = Table(data, colWidths=[120, 45, 130, 65])
+    
+    style = TableStyle([
+        # Header
+        ("BACKGROUND", (0,0), (-1,0), HexColor("#F8FAFC")),
+        ("TEXTCOLOR",  (0,0), (-1,0), HexColor("#64748B")),
+        ("FONTNAME",   (0,0), (-1,0), "Helvetica-Bold"),
+        ("FONTSIZE",   (0,0), (-1,0), 9),
+        ("TOPPADDING", (0,0), (-1,0), 8),
+        ("BOTTOMPADDING", (0,0), (-1,0), 8),
+        
+        # Data rows
+        ("FONTNAME",   (0,1), (-1,-1), "Helvetica"),
+        ("FONTSIZE",   (0,1), (-1,-1), 10),
+        ("TOPPADDING", (0,1), (-1,-1), 7),
+        ("BOTTOMPADDING", (0,1), (-1,-1), 7),
+        
+        # Grid
+        ("LINEBELOW", (0,0), (-1,0), 0.5, HexColor("#E2E8F0")),
+        ("LINEBELOW", (0,1), (-1,-1), 0.3, HexColor("#F1F5F9")),
+        
+        # Alignment
+        ("ALIGN", (1,0), (-1,-1), "CENTER"),
+        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+    ])
+    
+    # Color score column per row
+    for i, (label, weight, score) in enumerate(items):
+        row = i + 1
+        color = get_color(score)
+        style.add("TEXTCOLOR", (3,row), (3,row), color)
+        style.add("FONTNAME", (3,row), (3,row), "Helvetica-Bold")
+    
+    table.setStyle(style)
+    elements.append(Paragraph("<b>Score Breakdown</b>", ParagraphStyle('H2', fontName='Helvetica-Bold', fontSize=14, spaceAfter=10)))
+    elements.append(table)
+    elements.append(Spacer(1, 12))
+
+def build_skills_section(elements, matched_skills, styles):
+    matched_skills = matched_skills or {}
     required_matched = matched_skills.get("required_matched", []) or []
     required_missing = matched_skills.get("required_missing", []) or []
+    
+    elements.append(Paragraph("<b>Skills Analysis</b>", ParagraphStyle('H2', parent=styles['Heading2'], fontName='Helvetica-Bold')))
+    
+    # PDF FIX 2A: Handle empty gracefully
+    if not required_matched and not required_missing:
+        elements.append(Paragraph(
+            "Skills analysis available after running a JD-matched analysis.",
+            styles["body_gray"]
+        ))
+        elements.append(Spacer(1, 1*cm))
+        return
     
     data = [
         [Paragraph("<b>Matched Skills ✓</b>", ParagraphStyle('M', textColor=SUCCESS, fontName='Helvetica-Bold')), 
@@ -144,9 +191,8 @@ def build_skills_section(elements, matched_skills):
     elements.append(Paragraph(f"<b>Preferred Missing:</b> <font color='#F59E0B'>{pref_miss if pref_miss else 'None'}</font>", styles['BodyText']))
     elements.append(Spacer(1, 1*cm))
 
-def build_gaps_section(elements, gaps):
-    gaps = gaps or {} # Fix 1B
-    styles = getSampleStyleSheet()
+def build_gaps_section(elements, gaps, styles):
+    gaps = gaps or {}
     elements.append(Paragraph("<b>Gap Analysis</b>", ParagraphStyle('H2', parent=styles['Heading2'], fontName='Helvetica-Bold')))
     
     exp_gap = gaps.get("experience_gap", {}) or {}
@@ -170,16 +216,12 @@ def build_gaps_section(elements, gaps):
             
     elements.append(Spacer(1, 1*cm))
 
-def build_enhancements_section(elements, enhancements):
-    enhancements = enhancements or [] # Fix 1B
-    styles = getSampleStyleSheet()
-    elements.append(Paragraph("<b>Resume Enhancements</b>", ParagraphStyle('H2', parent=styles['Heading2'], fontName='Helvetica-Bold')))
-    
+def build_enhancements_section(elements, enhancements, styles):
+    enhancements = enhancements or []
     if not enhancements:
-        elements.append(Paragraph("No enhancements needed ✓", styles['BodyText']))
-        elements.append(Spacer(1, 1*cm))
         return
 
+    elements.append(Paragraph("<b>Resume Enhancements</b>", ParagraphStyle('H2', parent=styles['Heading2'], fontName='Helvetica-Bold')))
     for enh in enhancements:
         elements.append(Paragraph("<b>BEFORE:</b>", ParagraphStyle('B', textColor=DANGER, fontSize=10, fontName='Helvetica-Bold')))
         elements.append(Paragraph(enh.get('original', ''), styles['BodyText']))
@@ -189,19 +231,22 @@ def build_enhancements_section(elements, enhancements):
         
     elements.append(Spacer(1, 1*cm))
 
-def build_learning_path_section(elements, learning_path):
-    learning_path = learning_path or {} # Fix 1B
-    styles = getSampleStyleSheet()
+def build_learning_path_section(elements, learning_path, styles):
+    learning_path = learning_path or {}
+    priority_skills = learning_path.get("priority_skills", []) or []
+    
     elements.append(Paragraph("<b>Learning Roadmap</b>", ParagraphStyle('H2', parent=styles['Heading2'], fontName='Helvetica-Bold')))
     
-    priority_skills = learning_path.get("priority_skills", []) or []
-    summary = learning_path.get("summary", "") or ""
-    
+    # PDF FIX 2C: Handle empty gracefully
     if not priority_skills:
-        elements.append(Paragraph("No learning path generated.", styles['BodyText']))
+        elements.append(Paragraph(
+            "Learning roadmap available after running a JD-matched analysis.",
+            styles["body_gray"]
+        ))
         elements.append(Spacer(1, 1*cm))
         return
 
+    summary = learning_path.get("summary", "") or ""
     elements.append(Paragraph(f"<i>{summary}</i>", styles['BodyText']))
     
     order = " → ".join(learning_path.get('recommended_order', []) or [])
@@ -217,7 +262,6 @@ def build_learning_path_section(elements, learning_path):
             name = res.get('name', '')
             platform = res.get('platform', '')
             
-            # Filter Google search links
             if "google.com/search" in url:
                 display_url = f"Search: {skill_name} tutorial on YouTube"
             else:
@@ -227,11 +271,19 @@ def build_learning_path_section(elements, learning_path):
             
     elements.append(Spacer(1, 1*cm))
 
-def build_feedback_section(elements, feedback_text):
-    feedback_text = feedback_text or "No feedback generated." # Fix 1B
-    styles = getSampleStyleSheet()
+def build_feedback_section(elements, feedback_text, styles):
+    feedback_text = feedback_text or ""
     elements.append(Paragraph("<b>Career Coach Feedback</b>", ParagraphStyle('H2', parent=styles['Heading2'], fontName='Helvetica-Bold')))
     
+    # PDF FIX 2B: Handle empty gracefully
+    if not feedback_text.strip() or feedback_text == "No feedback generated.":
+        elements.append(Paragraph(
+            "Career coaching feedback available after running a JD-matched analysis.",
+            styles["body_gray"]
+        ))
+        elements.append(Spacer(1, 1*cm))
+        return
+        
     elements.append(Paragraph(feedback_text.replace("\n", "<br/>"), 
                              ParagraphStyle('Feedback', 
                                             backColor=LIGHT_BG, 
@@ -240,9 +292,8 @@ def build_feedback_section(elements, feedback_text):
                                             fontName='Helvetica-Oblique')))
     elements.append(Spacer(1, 1*cm))
 
-def build_formatting_section(elements, formatting):
-    formatting = formatting or {} # Fix 1B
-    styles = getSampleStyleSheet()
+def build_formatting_section(elements, formatting, styles):
+    formatting = formatting or {}
     elements.append(Paragraph("<b>ATS Compliance</b>", ParagraphStyle('H2', parent=styles['Heading2'], fontName='Helvetica-Bold')))
     
     compliance_score = formatting.get("compliance_score", 100) or 100
@@ -265,7 +316,7 @@ def build_formatting_section(elements, formatting):
                                  ParagraphStyle('Issue', fontSize=9, textColor=color, fontName='Helvetica')))
 
 def generate_ats_report(analysis_data: dict) -> bytes:
-    if not analysis_data: # Fix 1B
+    if not analysis_data:
         raise ValueError("analysis_data is None or empty")
 
     buffer = io.BytesIO()
@@ -274,10 +325,21 @@ def generate_ats_report(analysis_data: dict) -> bytes:
                            topMargin=2*cm, bottomMargin=2*cm)
     
     elements = []
+    styles = getSampleStyleSheet()
     
-    # Extract data with safe defaults (Fix 1B)
+    # PDF FIX 2D: Add body_gray style
+    styles.add(ParagraphStyle(
+        "body_gray",
+        parent=styles["Normal"],
+        textColor=HexColor("#9CA3AF"),
+        fontSize=10,
+        fontName="Helvetica-Oblique",
+        leading=16
+    ))
+    
+    # Extract data with safe defaults
     candidate_name = analysis_data.get("candidate_name", "Candidate")
-    role_title = analysis_data.get("role_title", "Unknown Role")
+    role_title = analysis_data.get("role_title", "")
     score_total = analysis_data.get("score_total", 0) or 0
     score_label = analysis_data.get("score_label", "Scanned")
     score = analysis_data.get("score", {}) or {}
@@ -290,15 +352,17 @@ def generate_ats_report(analysis_data: dict) -> bytes:
     
     build_header_section(elements, candidate_name, role_title, 
                         score_total, score_label, 
-                        datetime.now().strftime("%Y-%m-%d %H:%M"))
+                        datetime.now().strftime("%Y-%m-%d %H:%M"), styles)
     
-    build_score_breakdown_section(elements, score)
-    build_skills_section(elements, matched_skills)
-    build_gaps_section(elements, gaps)
-    build_enhancements_section(elements, enhancements)
-    build_learning_path_section(elements, learning_path)
-    build_feedback_section(elements, feedback)
-    build_formatting_section(elements, formatting)
+    # PDF FIX 1: Ensure called exactly ONCE
+    build_score_breakdown_section(elements, score, styles)
+    
+    build_skills_section(elements, matched_skills, styles)
+    build_gaps_section(elements, gaps, styles)
+    build_enhancements_section(elements, enhancements, styles)
+    build_learning_path_section(elements, learning_path, styles)
+    build_feedback_section(elements, feedback, styles)
+    build_formatting_section(elements, formatting, styles)
     
     elements.append(Spacer(1, 1*cm))
     elements.append(HRFlowable(width="100%", thickness=0.5, color=BORDER))

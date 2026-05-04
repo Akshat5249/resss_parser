@@ -20,10 +20,19 @@ app = FastAPI(
     version="0.1.0"
 )
 
+import os
+
 # CORS Middleware
+allowed_origins = ["*"] if settings.APP_ENV == "development" else [
+    "https://your-app.vercel.app", # Placeholder - user will update
+    os.getenv("FRONTEND_URL", ""),
+]
+# Remove empty strings
+allowed_origins = [o for o in allowed_origins if o]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.APP_ENV == "development" else ["https://yourdomain.com"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
