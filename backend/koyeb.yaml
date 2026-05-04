@@ -1,0 +1,18 @@
+name: ats-backend
+type: web
+git:
+  repository: github.com/YOUR_USERNAME/resume_parser
+  branch: main
+  workdir: backend
+  dockerfile: Dockerfile
+instance_types:
+  - type: nano
+ports:
+  - port: 8000
+    protocol: HTTP
+health_checks:
+  - grace_period: 10
+    interval: 30
+    path: /health
+    port: 8000
+    protocol: HTTP

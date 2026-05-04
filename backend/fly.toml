@@ -1,0 +1,13 @@
+app = "ats-celery-worker"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile.worker"
+
+[env]
+  APP_ENV = "production"
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1
