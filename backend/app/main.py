@@ -11,6 +11,7 @@ from app.api.routes import resume, jd, score, enhance, rank, analyze
 from app.db.postgres_client import db, init_db_pool
 from app.db.redis_client import redis_client, init_redis
 from app.api.routes import resume, jd, score, enhance, rank, analyze, report
+from app.core.embeddings import init_qdrant_collection
 
 logger = logging.getLogger(__name__)
 
