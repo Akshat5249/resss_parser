@@ -1,9 +1,9 @@
 import requests
 import sys
 
-# Replace with your actual deployed URLs
-BACKEND_URL = "https://ats-scanner-your-app.koyeb.app"
-FRONTEND_URL = "https://ats-scanner-your-app.vercel.app"
+# Update these URLs after deployment
+BACKEND_URL = "https://ats-backend-XXXX.onrender.com"
+FRONTEND_URL = "https://ats-scanner-XXXX.vercel.app"
 
 def check(name, fn):
     try:
@@ -11,54 +11,51 @@ def check(name, fn):
         print(f"✓ {name}")
     except Exception as e:
         print(f"✗ {name}: {e}")
+        # continue checking other services
 
 def run_checks():
-    print(f"Starting production verification for:")
-    print(f"Backend: {BACKEND_URL}")
-    print(f"Frontend: {FRONTEND_URL}\n")
+    print(f"Starting production verification for {BACKEND_URL}...\n")
+    
+    check("Backend health", lambda: (
+        r := requests.get(f"{BACKEND_URL}/health", timeout=60),
+        assert r.status_code == 200,
+        assert r.json()["status"] == "ok"
+    ))
 
-    # Test 1 — Health check
-    def check_health():
-        r = requests.get(f"{BACKEND_URL}/health")
-        assert r.status_code == 200
-        assert r.json()["status"] in ["ok", "degraded"]
-    check("Backend health", check_health)
-
-    # Test 2 — Database connected
     check("Database", lambda: (
-        r := requests.get(f"{BACKEND_URL}/health/db"),
+        r := requests.get(f"{BACKEND_URL}/health/db", timeout=30),
         assert r.status_code == 200
     ))
 
-    # Test 3 — Redis connected
     check("Redis", lambda: (
-        r := requests.get(f"{BACKEND_URL}/health/redis"),
+        r := requests.get(f"{BACKEND_URL}/health/redis", timeout=30),
         assert r.status_code == 200
     ))
 
-    # Test 4 — Qdrant connected
     check("Qdrant", lambda: (
-        r := requests.get(f"{BACKEND_URL}/health/qdrant"),
+        r := requests.get(f"{BACKEND_URL}/health/qdrant", timeout=30),
         assert r.status_code == 200
     ))
 
-    # Test 5 — Frontend loads
     check("Frontend", lambda: (
-        r := requests.get(FRONTEND_URL),
+        r := requests.get(FRONTEND_URL, timeout=30),
         assert r.status_code == 200
     ))
 
-    # Test 6 — Resume upload (smoke test)
-    def check_upload():
-        r = requests.post(
+    check("Resume upload", lambda: (
+        r := requests.post(
             f"{BACKEND_URL}/resume/upload",
-            files={"file": ("test.txt", b"John Doe Python Developer", "text/plain")}
-        )
-        assert r.status_code == 200
+            files={"file": ("test.txt", b"John Doe Python Developer", "text/plain")},
+            timeout=60
+        ),
+        assert r.status_code == 200,
         assert "job_id" in r.json()
-    check("Resume upload smoke test", check_upload)
+    ))
 
     print("\nAll checks complete.")
 
 if __name__ == "__main__":
+    if "ats-backend-XXXX" in BACKEND_URL:
+        print("Please update BACKEND_URL and FRONTEND_URL in the script before running.")
+        sys.exit(1)
     run_checks()

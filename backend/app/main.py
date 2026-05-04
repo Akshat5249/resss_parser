@@ -23,10 +23,14 @@ app = FastAPI(
 import os
 
 # CORS Middleware
-allowed_origins = ["*"] if settings.APP_ENV == "development" else [
-    "https://your-app.vercel.app", # Placeholder - user will update
-    os.getenv("FRONTEND_URL", ""),
-]
+allowed_origins = (
+    ["*"] if settings.APP_ENV == "development"
+    else [
+        "https://ats-scanner-XXXX.vercel.app", # Placeholder - update after Vercel deployment
+        "http://localhost:3000",
+        os.getenv("FRONTEND_URL", ""),
+    ]
+)
 # Remove empty strings
 allowed_origins = [o for o in allowed_origins if o]
 

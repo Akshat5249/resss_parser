@@ -54,3 +54,5 @@ backend/app/static/
 infra/.postgres_data/
 infra/.redis_data/
 infra/.qdrant_data/
+.env
+.env.*
