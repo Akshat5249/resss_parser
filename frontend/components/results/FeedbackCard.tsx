@@ -1,5 +1,5 @@
 import React from "react";
-import { Quote } from "lucide-react";
+import { Quote, MessageSquare } from "lucide-react";
 
 interface FeedbackCardProps {
   feedback: string;
@@ -14,11 +14,22 @@ export default function FeedbackCard({ feedback }: FeedbackCardProps) {
       <Quote className="absolute -top-4 -left-4 w-24 h-24 text-[#4F46E5]/5 transform -rotate-12" />
       
       <div className="relative z-10 space-y-6">
-        <div className="flex items-center space-x-3 mb-2">
-          <div className="bg-[#4F46E5] p-2 rounded-lg">
-            <Quote className="w-4 h-4 text-white fill-current" />
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center space-x-3">
+            <div className="bg-[#4F46E5] p-2 rounded-lg">
+              <MessageSquare className="w-4 h-4 text-white fill-current" />
+            </div>
+            <h3 className="text-lg font-bold text-[#1E293B]">Career Coach Assessment</h3>
           </div>
-          <h3 className="text-lg font-bold text-[#1E293B]">Career Coach Assessment</h3>
+          <div style={{
+            fontSize: "11px",
+            fontWeight: 700,
+            background: "#EEF2FF",
+            color: "#4F46E5",
+            padding: "4px 10px",
+            borderRadius: "100px",
+            letterSpacing: "0.5px"
+          }}>AI · PERSONALIZED</div>
         </div>
 
         <div className="space-y-4">
@@ -29,18 +40,8 @@ export default function FeedbackCard({ feedback }: FeedbackCardProps) {
               </p>
             ))
           ) : (
-            <p className="text-base text-[#334155] leading-relaxed italic">{feedback}</p>
+            <p className="text-base text-[#334155] leading-relaxed italic">{feedback || "No feedback generated."}</p>
           )}
-        </div>
-      </div>
-
-      <div className="mt-8 flex items-center space-x-4 border-t border-[#4F46E5]/10 pt-6">
-        <div className="w-10 h-10 bg-gradient-to-br from-[#4F46E5] to-[#818CF8] rounded-full flex items-center justify-center text-white font-bold">
-          AI
-        </div>
-        <div>
-          <p className="text-sm font-bold text-[#1E293B]">ATS Coaching Intelligence</p>
-          <p className="text-xs text-[#64748B]">Personalized feedback based on Job Description</p>
         </div>
       </div>
     </div>

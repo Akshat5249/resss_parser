@@ -11,54 +11,73 @@ interface ScoreGaugeProps {
 export default function ScoreGauge({ 
   score, 
   size = 160, 
-  strokeWidth = 12 
+  strokeWidth = 10 
 }: ScoreGaugeProps) {
-  const [offset, setOffset] = useState(0);
-  const radius = (size - strokeWidth) / 2;
-  const circumference = radius * 2 * Math.PI;
-
-  useEffect(() => {
-    const progressOffset = ((100 - score) / 100) * circumference;
-    setOffset(progressOffset);
-  }, [score, circumference]);
-
+  // UI FIX 1: Use specific structure with ONE text element inside SVG
+  const scoreInt = Math.round(score);
+  
   const getColor = (s: number) => {
-    if (s >= 80) return "#10B981"; // success
-    if (s >= 60) return "#4F46E5"; // indigo
-    if (s >= 40) return "#F59E0B"; // amber
-    return "#EF4444"; // red
+    if (s >= 70) return "#10B981"; // success
+    if (s >= 40) return "#4F46E5"; // indigo
+    return "#F59E0B"; // amber
   };
+
+  const scoreColor = getColor(scoreInt);
+  
+  // Circumference of r=60 is 2*π*60 ≈ 377
+  // strokeDasharray = (score/100) * 377 filled, rest empty.
+  const dashOffset = (scoreInt / 100) * 377;
 
   return (
     <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="transform -rotate-90">
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke="#E2E8F0"
-          strokeWidth={strokeWidth}
-          fill="transparent"
+      <svg viewBox="0 0 160 160" width={size} height={size} style={{ display: "block", margin: "0 auto" }}>
+        {/* Background circle */}
+        <circle 
+          cx="80" cy="80" r="60"
+          fill="none" 
+          stroke="#F3F4F6" 
+          strokeWidth="10"
         />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke={getColor(score)}
-          strokeWidth={strokeWidth}
-          fill="transparent"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
+        
+        {/* Progress circle */}
+        <circle 
+          cx="80" cy="80" r="60"
+          fill="none"
+          stroke={scoreColor}
+          strokeWidth="10"
           strokeLinecap="round"
-          className="score-gauge-animate"
+          strokeDasharray={`${dashOffset} 377`}
+          transform="rotate(-90 80 80)"
+          style={{ transition: "stroke-dasharray 1.2s ease" }}
         />
+        
+        {/* Score number (ONE text element only) */}
+        <text 
+          x="80" y="76"
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize="32"
+          fontWeight="700"
+          fontFamily="inherit"
+          fill={scoreColor}
+        >
+          {scoreInt}
+        </text>
+        
+        {/* "SCORE" label */}
+        <text 
+          x="80" y="100"
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize="11"
+          fontWeight="500"
+          fontFamily="inherit"
+          fill="#9CA3AF"
+          letterSpacing="1.5"
+        >
+          SCORE
+        </text>
       </svg>
-      <div className="absolute flex flex-col items-center">
-        <span className="text-4xl font-bold" style={{ color: getColor(score) }}>
-          {Math.round(score)}
-        </span>
-        <span className="text-xs text-[#64748B] font-medium uppercase tracking-wider">Score</span>
-      </div>
     </div>
   );
 }

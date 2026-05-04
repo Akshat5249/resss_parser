@@ -27,7 +27,7 @@ import { toast } from "react-hot-toast";
 export default function ResultsPage() {
   const { job_id } = useParams();
   const router = useRouter();
-  const [data, setData] = useState<AnalysisResult | null>(null);
+  const [data, setData] = useState<AnalysisResult | any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -79,7 +79,8 @@ export default function ResultsPage() {
     );
   }
 
-  const roleTitle = data.jd_job_id ? "Job Analysis" : "Resume Analysis";
+  // UI FIX 4: Better role title extraction
+  const roleTitle = data.role_title || data.gaps?.role_title || "Resume Analysis";
 
   const matchedSkills = {
     required_matched: data.matched_skills?.required_matched ?? [],
@@ -91,8 +92,8 @@ export default function ResultsPage() {
   return (
     <div className="min-h-screen bg-[#F9FAFB]">
       {/* Sticky Top Bar */}
-      <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-[#E5E7EB] px-6 py-3">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
+      <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-[#E5E7EB] px-6 py-3 h-14">
+        <div className="max-w-5xl mx-auto flex items-center justify-between relative h-full">
           <div className="flex items-center space-x-4">
             <button 
               onClick={() => router.push('/')}
@@ -101,12 +102,36 @@ export default function ResultsPage() {
             >
               <ArrowLeft className="w-5 h-5 text-[#6B7280] group-hover:text-[#111827]" />
             </button>
-            <div className="h-6 w-px bg-[#E5E7EB]"></div>
-            <div>
+            <div className="h-6 w-px bg-[#E5E7EB] hidden md:block"></div>
+            <div className="hidden md:block">
               <p className="text-xs font-bold text-[#6B7280] uppercase tracking-widest">Analysis Report</p>
-              <p className="text-sm font-bold text-[#111827] truncate max-w-[150px] md:max-w-xs">
-                {data.score_label} Match Found
+              <p className="text-sm font-bold text-[#111827]">
+                {data.score_label} Match
               </p>
+            </div>
+          </div>
+
+          {/* UI FIX 4: Center element in header with no truncation bug */}
+          <div style={{
+            position: "absolute",
+            left: "50%",
+            transform: "translateX(-50%)",
+            textAlign: "center",
+            maxWidth: "400px"
+          }}>
+            <div style={{
+              fontSize: "14px",
+              fontWeight: 600,
+              color: "#0A0A0A",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              maxWidth: "400px"
+            }}>
+              {roleTitle}
+            </div>
+            <div style={{ fontSize: "11px", color: "#9CA3AF", marginTop: "1px" }}>
+              Score: {data.score?.total ?? 0}/100
             </div>
           </div>
 
@@ -137,20 +162,13 @@ export default function ResultsPage() {
           
           <div className="bg-white rounded-3xl border border-[#E5E7EB] p-10 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 right-0 w-64 h-64 bg-[#4F46E5]/5 rounded-full -mr-32 -mt-32 blur-3xl"></div>
-            <div className="relative z-10 flex flex-col md:flex-row items-center gap-12">
-              <div className="flex flex-col items-center">
-                <div className="relative group">
-                  <div className="absolute inset-0 bg-[#4F46E5]/10 rounded-full blur-xl group-hover:bg-[#4F46E5]/20 transition-all"></div>
-                  <div className="relative bg-white rounded-full p-4 shadow-inner">
-                    <ScoreOverview 
-                      score={data.score} 
-                      label={data.score_label} 
-                      similarity={data.semantic_similarity}
-                      roleTitle={roleTitle} 
-                    />
-                  </div>
-                </div>
-              </div>
+            <div className="relative z-10">
+              <ScoreOverview 
+                score={data.score} 
+                label={data.score_label} 
+                similarity={data.semantic_similarity}
+                roleTitle={roleTitle} 
+              />
             </div>
           </div>
         </section>

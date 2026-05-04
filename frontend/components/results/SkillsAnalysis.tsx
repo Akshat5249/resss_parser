@@ -1,6 +1,5 @@
 import React from "react";
 import { CheckCircle2, XCircle, Star } from "lucide-react";
-import SkillBadge from "../ui/SkillBadge";
 import { MatchedSkills } from "@/lib/types";
 
 interface SkillsAnalysisProps {
@@ -12,6 +11,48 @@ export default function SkillsAnalysis({ skills }: SkillsAnalysisProps) {
   const reqMissing = skills.required_missing ?? [];
   const prefMatched = skills.preferred_matched ?? [];
   const prefMissing = skills.preferred_missing ?? [];
+
+  const renderSkillList = (skills: string[], variant: "matched" | "missing" | "preferred" | "preferred_missing") => {
+    if (skills.length === 0) return null;
+
+    return (
+      <div style={{
+        display: "flex",
+        flexWrap: "wrap",
+        gap: "8px",
+        marginTop: "10px"
+      }}>
+        {skills.map((skill, i) => (
+          <span key={`${skill}-${i}`} style={{
+            display: "inline-flex",
+            alignItems: "center",
+            padding: "4px 12px",
+            borderRadius: "100px",
+            fontSize: "13px",
+            fontWeight: 500,
+            whiteSpace: "nowrap",
+            background: variant === "matched" ? "#ECFDF5" : 
+                        variant === "missing" ? "#FEF2F2" : 
+                        variant === "preferred" ? "#EEF2FF" : 
+                        variant === "preferred_missing" ? "#FFFBEB" : "#F3F4F6",
+            color: variant === "matched" ? "#065F46" :
+                   variant === "missing" ? "#991B1B" :
+                   variant === "preferred" ? "#4F46E5" : 
+                   variant === "preferred_missing" ? "#92400E" : "#374151",
+            border: `1px solid ${
+              variant === "matched" ? "#A7F3D0" :
+              variant === "missing" ? "#FECACA" :
+              variant === "preferred" ? "#C7D2FE" : 
+              variant === "preferred_missing" ? "#FDE68A" : "#E5E7EB"
+            }`
+          }}>
+            {variant === "matched" ? "✓ " : 
+             variant === "missing" ? "✗ " : ""}{skill}
+          </span>
+        ))}
+      </div>
+    );
+  };
   
   return (
     <div className="space-y-12">
@@ -27,9 +68,9 @@ export default function SkillsAnalysis({ skills }: SkillsAnalysisProps) {
             <span className="text-[10px] font-bold text-[#6B7280]">{reqMatched.length} Matched</span>
           </div>
           
-          <div className="bg-white min-h-[160px] rounded-3xl border border-[#E5E7EB] p-8 shadow-sm flex flex-wrap gap-3 items-start content-start transition-all hover:shadow-md">
+          <div className="bg-white min-h-[160px] rounded-3xl border border-[#E5E7EB] p-8 shadow-sm transition-all hover:shadow-md">
             {reqMatched.length > 0 ? (
-              reqMatched.map(s => <SkillBadge key={s} skill={s} variant="matched" />)
+              renderSkillList(reqMatched, "matched")
             ) : (
               <div className="w-full h-full flex items-center justify-center">
                 <p className="text-sm text-[#94A3B8] italic">No required skills matched yet.</p>
@@ -48,9 +89,9 @@ export default function SkillsAnalysis({ skills }: SkillsAnalysisProps) {
             <span className="text-[10px] font-bold text-[#6B7280]">{reqMissing.length} Gaps</span>
           </div>
           
-          <div className="bg-white min-h-[160px] rounded-3xl border border-[#E5E7EB] p-8 shadow-sm flex flex-wrap gap-3 items-start content-start transition-all hover:shadow-md">
+          <div className="bg-white min-h-[160px] rounded-3xl border border-[#E5E7EB] p-8 shadow-sm transition-all hover:shadow-md">
             {reqMissing.length > 0 ? (
-              reqMissing.map(s => <SkillBadge key={s} skill={s} variant="missing" />)
+              renderSkillList(reqMissing, "missing")
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-[#F0FDF4] rounded-2xl">
                 <p className="text-sm text-[#059669] font-medium">✓ You have all required skills!</p>
@@ -78,24 +119,20 @@ export default function SkillsAnalysis({ skills }: SkillsAnalysisProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12 pt-4">
             <div className="space-y-4">
               <p className="text-[10px] font-bold text-[#6B7280] uppercase tracking-widest px-1">Bonus skills you possess</p>
-              <div className="flex flex-wrap gap-2">
-                {prefMatched.length > 0 ? (
-                  prefMatched.map(s => <SkillBadge key={s} skill={s} variant="preferred" />)
-                ) : (
-                  <p className="text-xs text-[#94A3B8] italic pl-1">None identified in your resume.</p>
-                )}
-              </div>
+              {prefMatched.length > 0 ? (
+                renderSkillList(prefMatched, "preferred")
+              ) : (
+                <p className="text-xs text-[#94A3B8] italic pl-1">None identified in your resume.</p>
+              )}
             </div>
 
             <div className="space-y-4">
               <p className="text-[10px] font-bold text-[#6B7280] uppercase tracking-widest px-1">Nice-to-haves to consider</p>
-              <div className="flex flex-wrap gap-2">
-                {prefMissing.length > 0 ? (
-                  prefMissing.map(s => <SkillBadge key={s} skill={s} variant="neutral" />)
-                ) : (
-                  <p className="text-xs text-[#94A3B8] italic pl-1">No additional preferred skills missing.</p>
-                )}
-              </div>
+              {prefMissing.length > 0 ? (
+                renderSkillList(prefMissing, "preferred_missing")
+              ) : (
+                <p className="text-xs text-[#94A3B8] italic pl-1">No additional preferred skills missing.</p>
+              )}
             </div>
           </div>
         </div>
